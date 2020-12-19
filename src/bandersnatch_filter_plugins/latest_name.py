@@ -1,6 +1,6 @@
 import logging
 from operator import itemgetter
-from typing import Dict, Iterator, Tuple, Union
+from typing import Dict, Iterator, Sequence, Tuple, Union
 
 from packaging.version import LegacyVersion, Version, parse
 
@@ -16,6 +16,7 @@ class LatestReleaseFilter(FilterReleasePlugin):
 
     name = "latest_release"
     keep = 0  # by default, keep 'em all
+    latest_version_cache: Dict[str, Sequence[str]] = {}
 
     def initialize_plugin(self) -> None:
         """
@@ -42,8 +43,21 @@ class LatestReleaseFilter(FilterReleasePlugin):
         releases: Dict = metadata["releases"]
         version: str = metadata["version"]
 
+        package_name = str(info.get("name"))
+
         if self.keep == 0 or self.keep > len(releases):
             return True
+
+        if package_name not in self.latest_version_cache:
+            self.latest_version_cache[package_name] = self._latest_versions(
+                info, releases
+            )
+        return version in self.latest_version_cache[package_name]
+
+    def _latest_versions(self, info: Dict, releases: Dict) -> Sequence[str]:
+        """
+        Parse, sort and limit to the latest versions
+        """
 
         versions_pair: Iterator[Tuple[Union[LegacyVersion, Version], str]] = map(
             lambda v: (parse(v), v), releases.keys()
@@ -59,4 +73,4 @@ class LatestReleaseFilter(FilterReleasePlugin):
         if info.get("version") not in version_names:
             version_names[-1] = info.get("version")
 
-        return version in version_names
+        return version_names
